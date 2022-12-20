@@ -7,9 +7,10 @@ import os
 import cv2
 import pytesseract
 from pytesseract import Output
+import math
 
 adb = Client(host='127.0.0.1', port=5037)
-#pytesseract.pytesseract.tesseract_cmd = r'D:\Programming\GitHub\WatsonlineCalender\.idea\venv\Scripts\pytesseract'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 devices = adb.devices()
 
 
@@ -47,16 +48,20 @@ if __name__ == '__main__':
 
     img = cv2.imread('tmp/screen.png')
     print(img.shape)  # Print image shape
-    # Cropping an image
+    # Initial crop
     cropped_image = img[920:1790, 40:885]
 
-    # Display cropped image
-    cv2.imshow("cropped", cropped_image)
-    # Save the cropped image
-    cv2.imwrite("tmp/Cropped Image.jpg", cropped_image)
+    images = []
+    prev = 0
+    for i in range(7):
+        cropped = cropped_image[prev:math.floor((i+1) * (cropped_image.shape[1]) / 7), 40:885]
+        print(prev, math.floor((i+1) * (cropped_image.shape[1]) / 7))
+        prev = math.floor((i+1) * (cropped_image.shape[1]) / 7)
+        images.append(cropped)
+        cv2.imshow("pic", cropped)
 
-    custom_config = r'--oem 3 --psm 6'
-    pytesseract.image_to_string(img, config=custom_config)
+    cv2.waitKey(0)
 
-    #d = pytesseract.image_to_string(img, output_type=Output.DICT)
-    #print(d.keys())
+
+    #d = pytesseract.image_to_string(cropped_image, output_type=Output.DICT)
+    #print(d['text'])
