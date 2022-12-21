@@ -1,4 +1,3 @@
-
 from ppadb.client import Client
 import time
 import os
@@ -11,19 +10,23 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import datetime
 
-adb = Client(host='127.0.0.1', port=5037)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-devices = adb.devices()
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 
 
+# Fetches data with ADB from Android phone connected, by manually going to the app
 def dataFetch():
-    if len(devices) == 0:
-        print("no devies attached")
-        quit()
-    print('Use phone? (y/n)')
+    print('Use phone to screenshot Watsonline? (y/n)')
     inp = input()
     if inp == 'y':
+
+        adb = Client(host='127.0.0.1', port=5037)
+        devices = adb.devices()
+
+        if len(devices) == 0:
+            print("no devices attached")
+            quit()
+
         device = devices[0]
         # Navigate to Watsonline, click schedules
         device.shell('input touchscreen swipe 550 2380 550 2000 200')
@@ -33,13 +36,12 @@ def dataFetch():
         device.shell('input text "watsonline"')
         time.sleep(1)
         device.shell('input touchscreen tap 125 400')
-        time.sleep(1)
+        time.sleep(5)
         device.shell('input touchscreen tap 550 2200')
-        time.sleep(1)
+        time.sleep(5)
         device.shell('input touchscreen tap 515 360')
 
-        # Tesseract OCR
-
+        # Make screencap, save it locally to the phone, then pull it onto this device
         screenshot_data = device.shell('screencap -p /sdcard/screen.png')
         try:
             os.mkdir('tmp')
@@ -48,6 +50,8 @@ def dataFetch():
         pulled = device.pull('/sdcard/screen.png', 'tmp/screen.png')
 
 
+# Tesseract Optical Character Recognition, prepares image with cv2, crops it, creates data dictionary using
+# tesseract output, returns it
 def OCR():
     img = cv2.imread('tmp/screen.png')
     # Initial crop
@@ -55,12 +59,6 @@ def OCR():
     # Print image shape
     # Crop for better size
     cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
-
-    # mon_date = cropped_image[60:120, 10:150]
-    # cv2.imshow('', mon_date)
-    # cv2.waitKey(0)
-    # date_output = pytesseract.image_to_string(mon_date)
-    # print(date_output)
 
     cropped_image = cv2.resize(cropped_image, (600, 700))
     cropped_height = cropped_image.shape[0]
@@ -71,25 +69,29 @@ def OCR():
     times = []
     prev = 0
     for i in range(7):
-        # Divide into 7 days
+        # Divide days into 7
         day_crop = cropped_image[prev + 5:int(cropped_height / 7) * (i + 1) - 5, 0:150]
         date_ocr = pytesseract.image_to_string(day_crop)
         date_split = date_ocr.split('\n')
         dates.append(date_split[1])
 
-        # Divide into 7 days
+        # Divide times into 7
         time_crop = cropped_image[prev + 5:int(cropped_height / 7) * (i + 1) - 5, 170:400]
         time_ocr = pytesseract.image_to_string(time_crop)
         time_trim = time_ocr[0:len(time_ocr) - 1]
+        if ' i' in time_trim:
+            time_trim = time_trim[0:len(time_trim) - 2]
+            print(time_trim)
         times.append(time_trim)
 
-        data[date_split[1]] = time_trim
+        data[date_split[1]] = time_trim  # Creates data KV-pairs
 
         prev = int(cropped_height / 7) * (i + 1)
 
     return data
 
 
+# Stolen from Google Quickstart guide on Calender API, handles all credentials and returns it for later use
 def credentials():
     # Credential garbage
     creds = None
@@ -112,35 +114,66 @@ def credentials():
     return creds
 
 
-def addEvents():
-
+# Given data and using valid creds, exterpolates data from data, formats it into RFC3339 format, passes to Calender API,
+# creates an event and executes it
+def addEvents(data):
+    # data = {'19-12': '14:00-18:00', '20-12': '', '21-12': '14:00-18:00', '22-12': '', '23-12': '', '24-12': '09:00-17:00', '25-12': '0.5F ®'}
     creds = credentials()
-    try:
-        service = build('calendar', 'v3', credentials=creds)
+    for key in data.keys():
+        if data[key] == '':
+            continue
+        if 'F' in data[key]:
+            continue
+        try:
+            service = build('calendar', 'v3', credentials=creds)
 
-        # Call the Calendar API
-        now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
-        print('Getting the upcoming 10 events')
-        events_result = service.events().list(calendarId='primary', timeMin=now,
-                                              maxResults=10, singleEvents=True,
-                                              orderBy='startTime').execute()
-        events = events_result.get('items', [])
+            startDateFormat = \
+                str(datetime.datetime.now().year) + '-' + key.split('-')[1] + '-' + key.split('-')[0] \
+                + 'T' + \
+                data[key].split('-')[0] + ':00'
 
-        if not events:
-            print('No upcoming events found.')
-            return
+            endDateFormat = \
+                str(datetime.datetime.now().year) + '-' + key.split('-')[1] + '-' + key.split('-')[0] \
+                + 'T' + \
+                data[key].split('-')[1] + ':00'
 
-        # Prints the start and name of the next 10 events
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            print(start, event['summary'])
+            print(startDateFormat + "- " + endDateFormat)
 
-    except HttpError as error:
-        print('An error occurred: %s' % error)
+            event = {
+                'summary': 'Werk',
+                'colorId': '11',
+                'start': {
+                    'dateTime': startDateFormat,
+                    'timeZone': 'Europe/Brussels',
+                },
+                'end': {
+                    'dateTime': endDateFormat,
+                    'timeZone': 'Europe/Brussels',
+                },
+
+            }
+
+            event = service.events().insert(calendarId='primary', body=event).execute()
+            print('Event created: %s' % (event.get('htmlLink')))
+
+        except HttpError as error:
+            print('An error occurred: %s' % error)
 
 
-
+# Main function
 if __name__ == '__main__':
-    #dataFetch()
-    #data = OCR()
-    addEvents()
+    print("""
+ __          __   _                   _ _             _____      _                _           
+ \ \        / /  | |                 | (_)           / ____|    | |              | |          
+  \ \  /\  / /_ _| |_ ___  ___  _ __ | |_ _ __   ___| |     __ _| | ___ _ __   __| | ___ _ __ 
+   \ \/  \/ / _` | __/ __|/ _ \| '_ \| | | '_ \ / _ \ |    / _` | |/ _ \ '_ \ / _` |/ _ \ '__|
+    \  /\  / (_| | |_\__ \ (_) | | | | | | | | |  __/ |___| (_| | |  __/ | | | (_| |  __/ |   
+     \/  \/ \__,_|\__|___/\___/|_| |_|_|_|_| |_|\___|\_____\__,_|_|\___|_| |_|\__,_|\___|_|   
+                                                                                              
+    """)
+    print("by Luka de Vrij - github.com/LifelessNerd\n\n\n")
+    dataFetch()
+    data = OCR()
+    addEvents(data)
+    print('\n\n\nProcess finished.')
+    input()
