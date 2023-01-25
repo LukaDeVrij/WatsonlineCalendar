@@ -19,12 +19,15 @@ def dataFetch():
     print('Use phone to screenshot Watsonline? (y/n)')
     inp = input()
     if inp == 'y':
+        try:
+            adb = Client(host='127.0.0.1', port=5037)
+            devices = adb.devices()
 
-        adb = Client(host='127.0.0.1', port=5037)
-        devices = adb.devices()
-
-        if len(devices) == 0:
-            print("no devices attached")
+            if len(devices) == 0:
+                print("no devices attached")
+                quit()
+        except:
+            print("A connection to the device could not be made.")
             quit()
 
         device = devices[0]
@@ -104,6 +107,8 @@ def credentials():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+        if creds.expired:  # Added by me, idk if it works. Token would expire and code would throw instead of refreshing
+            creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
                 'credentials.json', SCOPES)
@@ -156,8 +161,8 @@ def addEvents(data):
             event = service.events().insert(calendarId='primary', body=event).execute()
             print('Event created: %s' % (event.get('htmlLink')))
 
-        except HttpError as error:
-            print('An error occurred: %s' % error)
+        except:
+            print('An error occurred whilst creating Google Calender events!')
 
 
 # Main function
