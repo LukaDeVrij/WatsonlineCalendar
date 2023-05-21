@@ -39,9 +39,9 @@ def dataFetch():
         device.shell('input text "watsonline"')
         time.sleep(1)
         device.shell('input touchscreen tap 125 400')
-        time.sleep(3)
+        time.sleep(5)
         device.shell('input touchscreen tap 550 2200')
-        time.sleep(3)
+        time.sleep(5)
         device.shell('input touchscreen tap 515 360')
 
         # Make screencap, save it locally to the phone, then pull it onto this device
@@ -73,16 +73,13 @@ def OCR():
     prev = 0
     for i in range(7):
         # Divide days into 7
-        day_crop = cropped_image[prev + 5:int(cropped_height / 7) * (i + 1) + 10, 0:150]
-        cv2.imshow('image', day_crop)
-        cv2.waitKey(0)
+        day_crop = cropped_image[prev + 5:int(cropped_height / 7) * (i + 1) - 5, 0:150]
         date_ocr = pytesseract.image_to_string(day_crop)
         date_split = date_ocr.split('\n')
         dates.append(date_split[1])
 
         # Divide times into 7
         time_crop = cropped_image[prev + 5:int(cropped_height / 7) * (i + 1) - 5, 170:400]
-
         time_ocr = pytesseract.image_to_string(time_crop)
         time_trim = time_ocr[0:len(time_ocr) - 1]
         if ' i' in time_trim:
@@ -109,6 +106,8 @@ def credentials():
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        if creds.expired:  # Added by me, idk if it works. Token would expire and code would throw instead of refreshing
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
