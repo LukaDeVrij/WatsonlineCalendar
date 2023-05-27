@@ -74,8 +74,8 @@ def OCR():
     for i in range(7):
         # Divide days into 7
         day_crop = cropped_image[prev + 5:int(cropped_height / 7) * (i + 1) + 10, 0:150]
-        cv2.imshow('image', day_crop)
-        cv2.waitKey(0)
+        # cv2.imshow('image', day_crop)
+        # cv2.waitKey(0)
         date_ocr = pytesseract.image_to_string(day_crop)
         date_split = date_ocr.split('\n')
         dates.append(date_split[1])
