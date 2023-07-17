@@ -58,7 +58,9 @@ def dataFetch():
 def OCR():
     img = cv2.imread('tmp/screen.png')
     # Initial crop
-    cropped_image = img[920:1795, 40:885]
+    cropped_image = img[920:1805, 40:895]
+    # cv2.imshow('image', cropped_image)
+    # cv2.waitKey(0)
     # Print image shape
     # Crop for better size
     cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
